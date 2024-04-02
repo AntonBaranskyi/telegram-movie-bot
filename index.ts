@@ -1,11 +1,13 @@
 import TelegramBot from 'node-telegram-bot-api';
 import dotenv from 'dotenv';
-import axios from './src/services/axios.js';
-import commands from './src/helper/commands.js';
+import axios from './src/services/axios';
+import commands from './src/helper/commands';
 
 dotenv.config();
 
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
+
+let isFindingMovie = false;
 
 bot.on('message', async (msg) => {
   try {
@@ -19,9 +21,13 @@ bot.on('message', async (msg) => {
       await bot.sendMessage(chatId, 'Bot menu', {
         reply_markup: {
           keyboard: [
-            ['⭐️ Random movie', '⭐️ Popular film'],
-            ['⭐️ Film genres', '⭐️ About us'],
-            ['❌ Close menu'],
+            [{ text: '⭐️ Random movie' }, { text: '⭐️ Popular film' }],
+            [
+              { text: '⭐️ Film genres' },
+              { text: '⭐️ About us' },
+              { text: '⭐️ Find movie' },
+            ],
+            [{ text: '❌ Close menu' }],
           ],
           resize_keyboard: true,
         },
@@ -85,7 +91,22 @@ bot.on('message', async (msg) => {
     }
 
     if (msg.text === '⭐️ About us') {
-      
+      await bot.sendPhoto(chatId, './src/assets/me.jpg', {
+        caption: 'Course work made by <b>Anton Baranskyi</b>',
+        parse_mode: 'HTML',
+      });
+    }
+
+    if (msg.text === '⭐️ Popular film') {
+      isFindingMovie = true;
+
+      if (isFindingMovie) {
+        const responce = await axios.get(`/search/movie?query=${msg.text}`);
+      }
+    }
+
+    if (msg.text === '⭐️ Find movie') {
+      await bot.sendMessage(chatId, 'Please write movie name');
     }
   } catch (error) {
     console.log(error.message);
