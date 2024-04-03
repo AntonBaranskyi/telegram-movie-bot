@@ -1,7 +1,10 @@
 import TelegramBot from 'node-telegram-bot-api';
 import dotenv from 'dotenv';
 import axios from './src/services/axios';
-import commands from './src/helper/commands';
+import commands from './src/helpers/commands';
+import { IMovieData, IResponce } from './src/types/IMovieData';
+import { getGenres } from './src/helpers/getGenres';
+import { displayMovie } from './src/helpers/displayMovie';
 
 dotenv.config();
 
@@ -43,14 +46,16 @@ bot.on('message', async (msg) => {
     }
 
     if (msg.text === '⭐️ Random movie') {
-      let movieData = null;
+      let movieData: IMovieData | null = null;
 
       while (!movieData) {
         console.log('Enter');
         const randomMovieId = Math.floor(Math.random() * 999) + 1;
 
         try {
-          const responce = await axios(`/movie/${randomMovieId}`);
+          const responce = await axios.get<IMovieData>(
+            `/movie/${randomMovieId}`
+          );
 
           if (responce.status === 200) {
             movieData = responce.data;
@@ -64,30 +69,7 @@ bot.on('message', async (msg) => {
         }
       }
 
-      const genres = movieData.genres.map((genreItem) => genreItem.name);
-      const countries = movieData.production_countries.map(
-        (prodCountry) => prodCountry.name
-      );
-
-      await bot.sendPhoto(
-        chatId,
-        `${process.env.POSTER_ULR}/${movieData.poster_path}`,
-        {
-          caption: `<b>${movieData.title}</b>\n\n🎞Genres: ${genres.join(
-            ', '
-          )}\n🌍Countries: ${countries.join(
-            ' ,'
-          )}\n📅Year: ${movieData.release_date.slice(
-            0,
-            4
-          )}\n⭐️Rating IMDb: ${movieData.vote_average.toFixed(
-            1
-          )}\n🔞Category: ${movieData.adult ? 'R' : 'G'}\n\n\n${
-            movieData.overview
-          }`,
-          parse_mode: 'HTML',
-        }
-      );
+      displayMovie({ bot, movieData, chatId });
     }
 
     if (msg.text === '⭐️ About us') {
@@ -98,18 +80,76 @@ bot.on('message', async (msg) => {
     }
 
     if (msg.text === '⭐️ Popular film') {
-      isFindingMovie = true;
-
-      if (isFindingMovie) {
-        const responce = await axios.get(`/search/movie?query=${msg.text}`);
-      }
     }
 
     if (msg.text === '⭐️ Find movie') {
       await bot.sendMessage(chatId, 'Please write movie name');
+
+      isFindingMovie = true;
+
+      if (isFindingMovie) {
+        console.log('Find');
+
+        const responce = await axios.get(`/search/movie?query=${msg.text}`);
+
+        console.log(responce.data);
+      }
+    }
+
+    if (msg.text === '⭐️ Film genres') {
+      const genres = await getGenres();
+
+      const buttons = genres.map((genre) => [
+        { text: genre.name, callback_data: genre.id.toString() },
+      ]);
+
+      await bot.sendMessage(chatId, 'Choose your movie genre', {
+        reply_markup: {
+          inline_keyboard: buttons,
+        },
+      });
     }
   } catch (error) {
     console.log(error.message);
+  }
+});
+
+let currentIndex = 0;
+let movies: IMovieData[] = [];
+
+bot.on('callback_query', async (callback) => {
+  try {
+    const { data } = callback;
+    const chatId = callback.message.chat.id;
+
+    if (data === 'continue') {
+      currentIndex += 1;
+
+      if (currentIndex >= movies.length) {
+        currentIndex = 0;
+      }
+    } else {
+      const genres = await getGenres();
+      const movieWithGenres = await axios.get<IResponce>(
+        `/discover/movie?with_genres=${data}`
+      );
+
+      const currentGenre = genres.find((genre) => genre.id === +data).name;
+
+      await bot.sendMessage(chatId, `You choose ${currentGenre}`);
+
+      movies = movieWithGenres.data.results;
+      currentIndex = 0;
+    }
+
+    displayMovie({
+      bot,
+      movieData: movies[currentIndex],
+      chatId,
+      isCountable: true,
+    });
+  } catch (err) {
+    console.log(err);
   }
 });
 
