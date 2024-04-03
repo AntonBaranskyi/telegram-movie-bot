@@ -5,12 +5,12 @@ import commands from './src/helpers/commands';
 import { IMovieData, IResponce } from './src/types/IMovieData';
 import { getGenres } from './src/helpers/getGenres';
 import { displayMovie } from './src/helpers/displayMovie';
+import { KEYBOARD_MENU } from './src/constants/keyboards';
+import { KEYBOARD_MENU_ENUM } from './src/types/keyboardEnum';
 
 dotenv.config();
 
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
-
-let isFindingMovie = false;
 
 bot.on('message', async (msg) => {
   try {
@@ -23,21 +23,13 @@ bot.on('message', async (msg) => {
     if (msg.text === '/menu') {
       await bot.sendMessage(chatId, 'Bot menu', {
         reply_markup: {
-          keyboard: [
-            [{ text: '⭐️ Random movie' }, { text: '⭐️ Popular film' }],
-            [
-              { text: '⭐️ Film genres' },
-              { text: '⭐️ About us' },
-              { text: '⭐️ Find movie' },
-            ],
-            [{ text: '❌ Close menu' }],
-          ],
+          keyboard: KEYBOARD_MENU,
           resize_keyboard: true,
         },
       });
     }
 
-    if (msg.text === '❌ Close menu') {
+    if (msg.text === KEYBOARD_MENU_ENUM.CLOSE) {
       await bot.sendMessage(chatId, 'Menu is closed', {
         reply_markup: {
           remove_keyboard: true,
@@ -45,7 +37,7 @@ bot.on('message', async (msg) => {
       });
     }
 
-    if (msg.text === '⭐️ Random movie') {
+    if (msg.text === KEYBOARD_MENU_ENUM.RANDOM) {
       let movieData: IMovieData | null = null;
 
       while (!movieData) {
@@ -72,31 +64,56 @@ bot.on('message', async (msg) => {
       displayMovie({ bot, movieData, chatId });
     }
 
-    if (msg.text === '⭐️ About us') {
+    if (msg.text === KEYBOARD_MENU_ENUM.ABOUT) {
       await bot.sendPhoto(chatId, './src/assets/me.jpg', {
         caption: 'Course work made by <b>Anton Baranskyi</b>',
         parse_mode: 'HTML',
       });
     }
 
-    if (msg.text === '⭐️ Popular film') {
+    if (msg.text === KEYBOARD_MENU_ENUM.POPULAR) {
+      const response = await axios.get<IResponce>('/trending/movie/day');
+
+      movies = response.data.results;
+      currentIndex = 0;
+
+      displayMovie({
+        bot,
+        movieData: movies[currentIndex],
+        chatId,
+        isCountable: true,
+      });
     }
 
-    if (msg.text === '⭐️ Find movie') {
+    if (msg.text === KEYBOARD_MENU_ENUM.FIND) {
       await bot.sendMessage(chatId, 'Please write movie name');
-
-      isFindingMovie = true;
-
-      if (isFindingMovie) {
-        console.log('Find');
-
-        const responce = await axios.get(`/search/movie?query=${msg.text}`);
-
-        console.log(responce.data);
-      }
     }
 
-    if (msg.text === '⭐️ Film genres') {
+    if (
+      // @ts-ignore:next-line
+      !Object.values(KEYBOARD_MENU_ENUM).includes(msg.text) &&
+      msg.text !== '/menu' &&
+      msg.text !== '/start'
+    ) {
+      const responce = await axios.get<IResponce>(
+        `/search/movie?query=${msg.text}`
+      );
+
+      if (msg.text.length < 2 || responce.data.results.length === 0) {
+        await bot.sendMessage(chatId, `Cannot find movie <b>${msg.text}</b>`, {
+          parse_mode: 'HTML',
+        });
+      }
+
+      displayMovie({
+        bot,
+        movieData: responce.data.results[0],
+        chatId,
+        isFind: true,
+      });
+    }
+
+    if (msg.text === KEYBOARD_MENU_ENUM.GENRES) {
       const genres = await getGenres();
 
       const buttons = genres.map((genre) => [

@@ -7,6 +7,7 @@ type Props = {
   movieData: IMovieData;
   chatId: number;
   isCountable?: boolean;
+  isFind?: boolean;
 };
 
 export const displayMovie = async ({
@@ -14,6 +15,7 @@ export const displayMovie = async ({
   movieData,
   chatId,
   isCountable = false,
+  isFind = false,
 }: Props) => {
   const genres = movieData?.genres?.map((genreItem) => genreItem.name);
   const countries = movieData?.production_countries?.map(
@@ -24,7 +26,7 @@ export const displayMovie = async ({
 
   let movieGenres = [];
 
-  if (isCountable) {
+  if (isCountable || isFind) {
     movieGenres = movieData?.genre_ids.map((genreId) => {
       const genre = serverGenres.find((genre) => genre.id === genreId);
 
@@ -40,7 +42,7 @@ export const displayMovie = async ({
       `${process.env.POSTER_ULR}/${movieData?.poster_path}`,
       {
         caption: `<b>${movieData?.title}</b>\n\n🎞Genres: ${
-          !isCountable ? genres.join(', ') : movieGenres.join(', ')
+          !isCountable && !isFind ? genres.join(', ') : movieGenres.join(', ')
         }${countries ? '\n🌍Countries:' : ''} ${
           countries ? countries.join(' ,') : ''
         }\n📅Year: ${movieData?.release_date.slice(
